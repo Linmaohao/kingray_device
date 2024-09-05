@@ -57,6 +57,10 @@ do_build_updateimg()
 	IMAGE_DIR="$OUT_DIR/Image"
 	TARGET="$RK_FIRMWARE_DIR/$TYPE.img"
 
+	if [ -z "$RK_OTA_PACKAGE_FILE" ]; then
+		RK_OTA_PACKAGE_FILE="ota-package-file"
+	fi
+
 	case "$TYPE" in
 		*ota*) PKG_FILE="$RK_OTA_PACKAGE_FILE" ;;
 		*) PKG_FILE="$RK_PACKAGE_FILE" ;;
@@ -116,6 +120,14 @@ do_build_updateimg()
 	"$RK_PACK_TOOL_DIR/afptool" -pack ./ update.raw.img
 	"$RK_PACK_TOOL_DIR/rkImageMaker" -$TAG MiniLoaderAll.bin \
 		update.raw.img update.img -os_type:androidos
+
+	if echo "$TYPE" | grep -q "ota"; then
+		# Firmware Self-Signing, private key stored in $RK_CHIP_DIR
+		sha256sum $IMAGE_DIR/update.img | awk '{print $1}' > $IMAGE_DIR/update.img.sha256
+		openssl dgst -sha256 -sign $RK_CHIP_DIR/private_key.pem -out $IMAGE_DIR/update.img.sig \
+			-passin file:$RK_CHIP_DIR/private_key_pass.txt $IMAGE_DIR/update.img.sha256
+		cat $IMAGE_DIR/update.img.sig >> $IMAGE_DIR/update.img
+	fi
 
 	ln -rsf "$IMAGE_DIR/package-file" "$OUT_DIR"
 	ln -rsf "$IMAGE_DIR/update.img" "$OUT_DIR"
